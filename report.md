@@ -43,18 +43,26 @@ djangorestframework-gis 1.3 does not yet list Django 6.1 or Python 3.14 as teste
 
 ![One district in the browsable API](screenshots/cp2_district_detail.png)
 
-Size of `/api/districts/?format=json` in the Network tab: ____ KB (MB)
+Size of `/api/districts/?format=json` in the Network tab: 906 kB (160 districts, 757 ms)
+
+![Size of the full file](screenshots/cp2_size_format_json.png)
 
 ## Checkpoint 3: Loading by view
 
-| View | Districts | Size |
-|---|---|---|
-| `/api/districts/?format=json`, everything | 160 | ____ |
-| The map as it opens, Islamabad at zoom 9 | ____ | ____ |
-| Zoomed out to zoom 6 | ____ | ____ |
-| Zoomed in on Lahore at zoom 11 | ____ | ____ |
+| View | Districts | Size | Share of full file |
+|---|---|---|---|
+| `/api/districts/?format=json`, everything | 160 | 906 kB | 100% |
+| The map as it opens, Islamabad at zoom 9 | 33 | 161 kB | 18% |
+| Zoomed out to zoom 6 | 160 | 906 kB | 100% |
+| Zoomed in on Lahore at zoom 11 | 4 | 27.1 kB | 3% |
+
+Sizes are from the Size column of the Network tab for each `districts/?in_bbox=...` request.
 
 ![Map with Network tab showing an in_bbox request](screenshots/cp3_inbbox_network.png)
+
+![Zoom 6: all 160 districts](screenshots/cp3_zoom6.png)
+
+![Lahore at zoom 11: 4 districts](screenshots/cp3_lahore_zoom11.png)
 
 ## Checkpoint 4: Facility model
 
@@ -69,11 +77,15 @@ Compared with the district table from Lab 4: both columns are PostGIS `geometry`
 
 ![201 Created for IGIS, NUST](screenshots/cp5_201_created.png)
 
-| Test | Error message returned |
-|---|---|
-| 1. Arabian Sea `[64.0, 23.0]` | (e.g. `"geometry": ["This point is not inside any district of Pakistan."]`) |
-| 2. `"kind": "castle"` | (e.g. `"kind": ["\"castle\" is not a valid choice."]`) |
-| 3. Swapped coordinates `[33.6423, 72.9906]` | (e.g. `"geometry": ["This point is not inside any district of Pakistan."]`) |
+POSTing the NUST point `[72.9906, 33.6423]` returned **HTTP 201 Created** with `"district": "Islamabad"`.
+
+| Test | Sent | Answer |
+|---|---|---|
+| 1. Arabian Sea | `[64.0, 23.0]` | `HTTP 400 Bad Request` — `{"geom": ["This point is not inside any district of Pakistan."]}` |
+| 2. Invalid kind | `"kind": "castle"` | `HTTP 400 Bad Request` — `{"kind": ["\"castle\" is not a valid choice."]}` |
+| 3. Swapped coordinates | `[33.6423, 72.9906]` | `HTTP 400 Bad Request` — `{"geom": ["This point is not inside any district of Pakistan."]}` |
+
+Tests 1 and 3 were refused by `validate_geom`, which checks the point against the district polygons in PostGIS. Test 2 was refused by the `choices` on the `kind` field. The swapped NUST coordinates put the point at latitude 72.99, far outside Pakistan, so the same check that keeps out the sea also catches the most common coordinate-order mistake.
 
 ## Checkpoint 6: Collecting data from the map
 
@@ -96,9 +108,13 @@ Every facility inside the purple circle was listed and none outside it.
 
 ## Questions
 
+
 **1. Why does loading by view save so much at zoom 9 and so little at zoom 6? What would help at the scale of the whole country?**
 
-At zoom 9 around Islamabad the view covers only a small area, so the bounding box touches a handful of districts and the response is a small part of the full file. At zoom 6 the view covers nearly all of Pakistan, so the box touches almost every district and the request is close to the full download. The bbox filter only reduces the number of features, not how detailed each one is. At country scale the fix is to send less detail per feature: simplify the geometries for small scales (for example with `ST_Simplify` or a pre-simplified copy of the table, chosen by zoom level), or serve vector tiles so each zoom level gets geometry at the detail it can show.
+The bounding-box filter returns only the districts that touch the visible rectangle. At zoom 9 around Islamabad the view covers a small area, so only 33 of the 160 districts were sent (161 kB instead of 906 kB, about 18% of the full file). At zoom 11 on Lahore it was only 4 districts and 27.1 kB, about 3%. At zoom 6 the whole of Pakistan is in view, so every district touches the box and all 160 came back at 906 kB, the same as the full file. The filter reduces how many features are sent, but not how detailed each one is, so at country scale it saves nothing.
+
+At national scale, the fix is to send less detail per feature: simplify the boundaries for small scales (for example with PostGIS `ST_Simplify`, or a pre-simplified copy of the table chosen by zoom level), since at zoom 6 a boundary vertex every few metres cannot be seen anyway. Another option is vector tiles, which send each zoom level only the geometry detail it can display.
+
 
 **2. The facility's district is worked out each time it is sent instead of being stored. Give one advantage and one cost.**
 
