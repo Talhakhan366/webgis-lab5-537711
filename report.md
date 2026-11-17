@@ -11,11 +11,27 @@
 
 ### pip freeze
 ```
-(paste the output of: pip freeze)
+asgiref==3.13.0
+Django==6.1.2
+django-filter==26.2
+djangorestframework==3.18.3
+djangorestframework-gis==1.3.0
+psycopg==3.3.6
+psycopg-binary==3.3.6
+sqlparse==0.6.0
+tzdata==2026.5
 ```
 
-Versions used: Python 3.14.__, Django 6.1.__, djangorestframework __, djangorestframework-gis __, django-filter __.
-djangorestframework-gis does not yet list Django 6.1 / Python 3.14 as tested, but everything in this lab ran with them.
+Versions used: Python 3.14.9, Django 6.1.2, djangorestframework 3.18.3, djangorestframework-gis 1.3.0, django-filter 26.2.
+djangorestframework-gis 1.3 does not yet list Django 6.1 or Python 3.14 as tested, but everything in this lab ran with these versions.
+
+### District count
+```
+> python manage.py shell -c "print(District.objects.count())"
+16 objects imported automatically (use -v 2 for details).
+
+160
+```
 
 ### District count
 ```
@@ -42,10 +58,8 @@ Size of `/api/districts/?format=json` in the Network tab: ____ KB (MB)
 
 ## Checkpoint 4: Facility model
 
-Geometry line from `python manage.py sqlmigrate facilities 0001`:
-```
-(paste the CREATE TABLE line with "geom" geometry(POINT, 4326) and the CREATE INDEX ... USING GIST line)
-```
+CREATE TABLE "facilities_facility" (... "geom" geometry(POINT,4326) NOT NULL);
+CREATE INDEX "facilities_facility_geom_ba199118_id" ON "facilities_facility" USING GIST ("geom");
 
 Compared with the district table from Lab 4: both columns are PostGIS `geometry` in SRID 4326 with a GiST spatial index; the district column is `MULTIPOLYGON`, the facility column is `POINT`.
 
